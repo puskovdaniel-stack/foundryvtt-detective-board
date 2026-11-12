@@ -4,6 +4,14 @@
 
 Детективные доски для расследований в Call of Cthulhu, D&D, Cyberpunk RED и других системах. Стилистика: классическая пробковая доска, бумага, красные нити.
 
+## Установка через Foundry
+
+В менеджере дополнений Foundry выберите установку по URL манифеста:
+
+`https://github.com/puskovdaniel-stack/foundryvtt-detective-board/releases/latest/download/module.json`
+
+Каждый пуш в `main` публикует актуальный пакет в GitHub Release через Actions. Если релиз ещё не готов, используйте ручную установку ниже.
+
 ## Установка (вручную)
 
 1. Остановите Foundry.
@@ -61,7 +69,7 @@ game.modules.get("detective-board").api.open();
 
 ## Репозиторий
 
-Код готов к размещению в отдельном GitHub-репозитории `foundryvtt-detective-board`. Автоматическая публикация релиза настроена в `.github/workflows/release.yml`. Создание репозитория и первый пуш выполняются отдельно. Пока репозиторий и релизы не опубликованы, **манифестная URL из `module.json` недоступна**: используйте ручную установку из ZIP.
+Исходники публикуются в репозитории `foundryvtt-detective-board`. Workflow `.github/workflows/release.yml` автоматически создаёт или обновляет GitHub Release с архивом `detective-board.zip` и манифестом `module.json` при пуше в `main`. Версия берётся из `module.json`.
 
 ## Структура
 

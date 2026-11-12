@@ -1,7 +1,9 @@
-name: Release
+name: Publish release
 on:
   push:
+    branches: ["main"]
     tags: ["v*"]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -9,16 +11,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript and package
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node tests/smoke.mjs
+          node -e "const m=require('./module.json'); if(!m.version || m.id!=='detective-board') process.exit(1)"
+      - name: Get version tag
+        id: version
+        shell: bash
+        run: |
+          echo "tag=v$(node -p "require('./module.json').version")" >> "$GITHUB_OUTPUT"
       - name: Build distributable ZIP
         run: |
           mkdir -p dist/detective-board
           cp -r module.json src styles languages README.md LICENSE dist/detective-board/
-          cd dist
-          zip -qr detective-board.zip detective-board
-          cp detective-board/module.json module.json
-      - name: Publish assets
+          (cd dist && zip -qr detective-board.zip detective-board)
+          cp module.json dist/module.json
+          unzip -t dist/detective-board.zip
+      - name: Publish or update release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          overwrite_files: true
+          generate_release_notes: true
           files: |
             dist/detective-board.zip
             dist/module.json
