@@ -1,4 +1,4 @@
-/* Detective Board 0.1.0 — scoped styles for Foundry VTT 13 */
+/* Detective Board 0.1.0 - scoped styles for Foundry VTT 13 */
 .db-app { --db-ink:#2b2017; --db-cream:#e5d2a8; --db-red:#b03a30; color:var(--db-ink); }
 .db-app .window-content { padding:0 !important; overflow:hidden; background:#241e1a; }
 .db-app button { min-height:30px; border:1px solid #a39279; border-radius:7px; padding:5px 10px; font:inherit; color:#f1dfc7; background:#49392e; cursor:pointer; box-shadow:none; }

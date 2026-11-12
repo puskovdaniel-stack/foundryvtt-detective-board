@@ -12,7 +12,7 @@ export function openManager() {
 export class BoardManager extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id:"detective-board-manager", classes:["db-app","db-manager-app"],
-    window:{title:"Detective Board — Расследования",icon:"fa-solid fa-thumbtack",resizable:true},
+    window:{title:"Detective Board - Расследования",icon:"fa-solid fa-thumbtack",resizable:true},
     position:{width:850,height:665}
   };
   constructor(...args) { super(...args); this.filter=""; }
@@ -77,7 +77,7 @@ export class BoardManager extends foundry.applications.api.ApplicationV2 {
     const result=await ask({window:{title:"Новая детективная доска"},content:`
       <div class="db-dialog"><label>Название<input name="title" required maxlength="100" value="Новое расследование"></label>
       <label>Описание<textarea name="description" rows="2" maxlength="1500"></textarea></label>
-      <label>Доступ<select name="access"><option value="private">Личная (по умолчанию)</option><option value="shared">Общая — все владельцы</option><option value="view">Просмотр всем</option><option value="custom">Выборочный доступ</option></select></label>
+      <label>Доступ<select name="access"><option value="private">Личная (по умолчанию)</option><option value="shared">Общая - все владельцы</option><option value="view">Просмотр всем</option><option value="custom">Выборочный доступ</option></select></label>
       <label>Оформление<select name="theme"><option value="classic">Классическая пробковая доска (по умолчанию)</option><option value="dark">Тёмная доска</option></select></label>
       <label>Шаблон<select name="template"><option value="empty">Пустая доска (по умолчанию)</option><option value="case">Расследование</option><option value="characters">Связи персонажей</option><option value="timeline">Хронология</option></select></label>
       <details><summary>Индивидуальные права игроков</summary><div class="db-permission-list">${usersHTML()}</div><small>Индивидуальные права имеют приоритет над общим доступом. Создатель всегда OWNER.</small></details>

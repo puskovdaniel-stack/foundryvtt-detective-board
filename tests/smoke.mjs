@@ -67,4 +67,4 @@ const imported=await DBStore.importData(exportPayload);
 assert.equal(DBStore.cards(imported).length,5);
 assert.equal(DBStore.links(imported).length,1);
 assert.ok(DBStore.cards(imported).every(p=>!DBStore.entry(p).sourceUuid));
-console.log('SMOKE OK — boards, access, templates, CRUD, links, archive, notes, export/import');
+console.log('SMOKE OK - boards, access, templates, CRUD, links, archive, notes, export/import');

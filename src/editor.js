@@ -58,7 +58,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       <div class="db-inspector-content"><p><b>Карточки</b>: <span data-value="cards">0</span></p>
       <p><b>Связи</b>: <span data-value="links">0</span></p>
       <hr/><p class="db-tip">Дважды нажмите карточку для заметок и описания.</p>
-      <p class="db-tip">Колесо мыши — масштаб. Средняя кнопка — перемещение доски.</p>
+      <p class="db-tip">Колесо мыши - масштаб. Средняя кнопка - перемещение доски.</p>
       <p class="db-tip">Связи подписываются. Нажмите на подпись, чтобы изменить или удалить нить.</p>
       </div></aside></div>
       <div class="db-editor-footer"><div class="db-save-state" data-role="save"><i class="fa-solid fa-circle-check"></i> Сохранено</div>
@@ -377,7 +377,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     if(!this.writable)return;
     const result=await ask({window:{title:"Новая нить"},content:`<div class="db-dialog">
       <label>Описание связи<input name="label" value="Связано" maxlength="100"></label>
-      <label>Цвет<select name="color"><option value="#ad392f">Красный — подозрение</option><option value="#427d57">Зелёный — подтверждено</option><option value="#b38c34">Жёлтый — вопрос</option><option value="#5a6577">Серый — нейтрально</option></select></label>
+      <label>Цвет<select name="color"><option value="#ad392f">Красный - подозрение</option><option value="#427d57">Зелёный - подтверждено</option><option value="#b38c34">Жёлтый - вопрос</option><option value="#5a6577">Серый - нейтрально</option></select></label>
       </div>`,ok:{label:"Соединить",callback:(_e,b)=>({label:b.form.elements.label.value,color:b.form.elements.color.value})}});
     if(!result)return;
     this.setSaving("saving");await DBStore.createLink(this.board,from,to,result.label,result.color);
