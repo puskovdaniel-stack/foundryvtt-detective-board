@@ -47,7 +47,7 @@ export function t(key) { return game.i18n.localize(`DB.${key}`); }
 export function ask(config) {
   const html = typeof config?.content === "string" ? config.content : "";
   const isLongForm = html.includes('class="db-dialog"')
-    && (/<textarea\\b/.test(html) || html.includes("db-permission-list")
+    && (html.includes("<textarea") || html.includes("db-permission-list")
       || html.includes("db-other-note") || html.length > 700);
   if (!isLongForm) {
     return foundry.applications.api.DialogV2.prompt({rejectClose:false, ...config});
