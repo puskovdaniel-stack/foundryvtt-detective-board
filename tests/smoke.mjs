@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {escapeHTML, safeImage, cardPosition, boardDialogPosition, draggedDocumentUUID} from '../src/utils.js';
+import {escapeHTML, safeImage, cardPosition, boardDialogPosition, draggedDocumentUUID, ask, showWindowCloseX} from '../src/utils.js';
 let next=0;
 const clone = x=>structuredClone(x);
 function mergeDotted(target, patch) {
@@ -47,6 +47,23 @@ assert.deepEqual(cardPosition(4), {x:170,y:390});
 assert.equal(draggedDocumentUUID({type:"Scene",id:"abc"}),"Scene.abc");
 assert.equal(draggedDocumentUUID({type:"Scene",uuid:"Scene.xy"}),"Scene.xy");
 assert.equal(draggedDocumentUUID({type:"Macro",id:"abc"}),null);
+// Regression: long evidence dialogs must use bounded dimensions and a scrollable class.
+let observedDialog;
+globalThis.window={innerWidth:720,innerHeight:520};
+foundry.applications.api={DialogV2:{prompt:async options=>{observedDialog=options;return null;}}};
+await ask({window:{title:"Новая улика"},content:'<div class="db-dialog"><textarea name="description"></textarea></div>'});
+assert.equal(observedDialog.position.width,540);
+assert.equal(observedDialog.position.height,456);
+assert.ok(observedDialog.classes.includes("db-board-form-dialog"));
+assert.equal(observedDialog.window.resizable,true);
+await ask({content:"<p>Короткое окно</p>"});
+assert.equal(observedDialog.position,undefined);
+// Regression: one close control, without a second square/minimize button.
+const close={classList:{add(value){this[value]=true;}},setAttribute(name,value){this[name]=value;}};
+const duplicate={style:{}};
+showWindowCloseX({window:{close,header:{querySelectorAll:()=>[duplicate,close]}}});
+assert.equal(close.textContent,"×");
+assert.equal(duplicate.style.display,"none");
 assert.deepEqual(boardDialogPosition(1920,1080), {width:540,height:640});
 assert.deepEqual(boardDialogPosition(800,600), {width:540,height:536});
 assert.deepEqual(boardDialogPosition(360,450), {width:328,height:386});

@@ -153,3 +153,44 @@
 }
 .db-app .window-header button.db-close-x:hover {background:#71472f;color:white;}
 .db-card.db-selected {outline:3px solid #f9d478;outline-offset:3px;}
+
+/* Long card/dialog forms: scroll only the content, never clip the submit button. */
+.db-board-form-dialog {
+  box-sizing:border-box;
+  min-height:0;
+  overflow:hidden;
+}
+.db-board-form-dialog > .window-content,
+.db-board-form-dialog .window-content > form,
+.db-board-form-dialog .dialog-form {
+  box-sizing:border-box;
+  min-height:0;
+}
+.db-board-form-dialog .dialog-content,
+.db-board-form-dialog .dialog-form > .db-dialog,
+.db-board-form-dialog .window-content > form > .db-dialog {
+  scrollbar-width:thin;
+  overflow-y:auto;
+  overflow-x:hidden;
+  min-height:0;
+}
+.db-board-form-dialog .dialog-content .db-dialog,
+.db-board-form-dialog form > .db-dialog {
+  width:100%;
+  box-sizing:border-box;
+}
+.db-board-form-dialog .dialog-buttons,
+.db-board-form-dialog form > footer {
+  position:relative;
+  z-index:1;
+  flex-shrink:0;
+}
+/* Remove the default/missing glyph and redundant header controls. */
+.db-app .window-header button.db-close-x::before,
+.db-app .window-header button.db-close-x::after {
+  content:none !important;
+  display:none !important;
+}
+.db-app .window-header button.db-close-x > i,
+.db-app .window-header button.db-close-x > svg {display:none !important;}
+.db-app .window-header button:not(.db-close-x) {display:none !important;}

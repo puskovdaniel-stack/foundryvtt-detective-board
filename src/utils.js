@@ -10,10 +10,15 @@ export function draggedDocumentUUID(data) {
 export function showWindowCloseX(app) {
   const close = app.window?.close;
   if (!close) return;
+  // Foundry's header icons may be unavailable with some custom themes.
+  // Keep only one explicit close button in our application windows.
   close.textContent = "×";
   close.classList.add("db-close-x");
   close.setAttribute("aria-label","Закрыть");
   close.title = "Закрыть";
+  for (const button of app.window?.header?.querySelectorAll("button") || []) {
+    if (button !== close) button.style.display = "none";
+  }
 }
 
 // Keep long Foundry dialogs within the available screen size.
@@ -40,7 +45,22 @@ export function notifyError(error) {
 }
 export function t(key) { return game.i18n.localize(`DB.${key}`); }
 export function ask(config) {
-  return foundry.applications.api.DialogV2.prompt({ rejectClose: false, ...config });
+  const html = typeof config?.content === "string" ? config.content : "";
+  const isLongForm = html.includes('class="db-dialog"')
+    && (/<textarea\\b/.test(html) || html.includes("db-permission-list")
+      || html.includes("db-other-note") || html.length > 700);
+  if (!isLongForm) {
+    return foundry.applications.api.DialogV2.prompt({rejectClose:false, ...config});
+  }
+  const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;
+  return foundry.applications.api.DialogV2.prompt({
+    ...config,
+    rejectClose:false,
+    classes:[...new Set(["db-board-form-dialog", ...(config.classes || [])])],
+    window:{resizable:true, ...(config.window || {})},
+    position:{...boardDialogPosition(viewportWidth,viewportHeight), ...(config.position || {})}
+  });
 }
 export function confirm(content, title = t("Confirm")) {
   return foundry.applications.api.DialogV2.confirm({ window: { title }, content, rejectClose: false });
