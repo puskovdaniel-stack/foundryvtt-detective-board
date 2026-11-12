@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {escapeHTML, safeImage, cardPosition, boardDialogPosition, draggedDocumentUUID, ask, showWindowCloseX} from '../src/utils.js';
+import {escapeHTML, safeImage, cardPosition, boardDialogPosition, draggedDocumentUUID, ask, showWindowCloseX, cardResizeDimensions} from '../src/utils.js';
 let next=0;
 const clone = x=>structuredClone(x);
 function mergeDotted(target, patch) {
@@ -47,6 +47,10 @@ assert.deepEqual(cardPosition(4), {x:170,y:390});
 assert.equal(draggedDocumentUUID({type:"Scene",id:"abc"}),"Scene.abc");
 assert.equal(draggedDocumentUUID({type:"Scene",uuid:"Scene.xy"}),"Scene.xy");
 assert.equal(draggedDocumentUUID({type:"Macro",id:"abc"}),null);
+assert.deepEqual(cardResizeDimensions(230,230,120,70,0),{width:350,height:300});
+assert.deepEqual(cardResizeDimensions(230,230,1000,1000,0),{width:620,height:740});
+assert.deepEqual(cardResizeDimensions(230,230,-1000,-1000,0),{width:160,height:130});
+assert.deepEqual(cardResizeDimensions(230,230,0,100,90),{width:330,height:230});
 // Regression: long evidence dialogs must use bounded dimensions and a scrollable class.
 let observedDialog;
 globalThis.window={innerWidth:720,innerHeight:520};

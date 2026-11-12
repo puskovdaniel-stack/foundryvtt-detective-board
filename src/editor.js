@@ -1,4 +1,4 @@
-import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX} from "./utils.js";
+import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX, cardResizeDimensions} from "./utils.js";
 import {DBStore} from "./store.js";
 
 export const activeEditors = new Set();
@@ -7,6 +7,41 @@ const kindLabels = {note:"Записка",actor:"Персонаж",item:"Пре�
 
 function validColor(color) { return /^#[0-9a-fA-F]{6}$/.test(String(color)) ? color : "#ad392f"; }
 function numberAttr(n) { return Number.isFinite(+n) ? Number(n) : 0; }
+
+// Image path can still be entered manually; a V13 FilePicker is optional.
+function imageFieldHTML(path="",editable=true) {
+  const src=safeImage(path);
+  return `<label>Изображение (путь в Foundry или URL)</label>
+    <div class="db-image-picker">
+      <input type="text" name="image" value="${escapeHTML(path)}" placeholder="icons/svg/mystery-man.svg" ${editable?"":"disabled"}>
+      ${editable?'<button type="button" data-db-pick-image title="Выбрать файл в Foundry"><i class="fa-solid fa-folder-open"></i> Выбрать</button>':""}
+    </div>
+    <img class="db-image-preview" alt="Предпросмотр изображения" ${src?`src="${src}"`:'hidden'}>`;
+}
+function bindImagePicker(_event,dialog) {
+  const root=dialog.element;
+  const input=root?.querySelector('input[name="image"]');
+  const button=root?.querySelector("[data-db-pick-image]");
+  const preview=root?.querySelector(".db-image-preview");
+  if(!input)return;
+  input.addEventListener("input",()=>{
+    const src=safeImage(input.value);
+    if(preview) {
+      if(src) {preview.src=input.value.trim();preview.hidden=false;}
+      else {preview.removeAttribute("src");preview.hidden=true;}
+    }
+  });
+  button?.addEventListener("click",()=>{
+    const Picker=foundry.applications.apps.FilePicker;
+    new Picker({
+      type:"image",current:input.value,
+      callback:path=>{
+        input.value=path;
+        input.dispatchEvent(new Event("input",{bubbles:true}));
+      }
+    }).render({force:true});
+  });
+}
 
 export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
@@ -112,6 +147,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       ${src?`<div class="db-card-image"><img src="${src}" alt="" loading="lazy" draggable="false"></div>`:""}
       <div class="db-card-description">${escapeHTML(d.description||"")}</div>
       <div class="db-card-bottom">${tags}<span class="db-card-noteicon" title="Заметки"><i class="fa-solid fa-comment"></i></span></div>
+      ${this.writable?'<span class="db-resize-handle" title="Изменить размер карточки" aria-label="Изменить размер"></span>':""}
       </article>`;
   }
   linkHTML(page) {
@@ -126,6 +162,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const cx=(ax+bx)/2,cy=(ay+by)/2+sag;
     const color=validColor(d.color);
     return `<g class="db-wire" data-link="${page.id}"><path d="M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}" stroke="${color}" stroke-width="3" fill="none" class="db-wire-path"></path>
+       <path d="M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}" stroke="transparent" stroke-width="20" fill="none" class="db-wire-hit"></path>
        <text x="${cx}" y="${cy-9}" text-anchor="middle" class="db-wire-label">${escapeHTML(d.label||page.name||"Связано")}</text>
        <circle cx="${ax}" cy="${ay}" r="6" fill="${color}" class="db-wire-pin"></circle><circle cx="${bx}" cy="${by}" r="6" fill="${color}" class="db-wire-pin"></circle></g>`;
   }
@@ -175,7 +212,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       return;
     }
     const link=event.target.closest("[data-link]");
-    if(link) {await this.editLink(link.dataset.link);return;}
+    if(link) {try{await this.editLink(link.dataset.link);}catch(error){notifyError(error);}return;}
     const card=event.target.closest("[data-card]");
     if(card && this.tool==="select") {
       this.selectedCardId=card.dataset.card;
@@ -232,6 +269,22 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const viewport=event.target.closest(".db-viewport");if(!viewport) return;
     const card=event.target.closest(".db-card");
     const isPan=event.button===1||this.tool==="pan";
+    if(card && event.button===0 && this.tool==="select" && this.writable && event.target.closest(".db-resize-handle")) {
+      const page=this.board?.pages.get(card.dataset.card),d=DBStore.entry(page);
+      if(!page||!d)return;
+      event.preventDefault();event.stopPropagation();
+      this.selectedCardId=page.id;
+      viewport.focus({preventScroll:true});
+      this.element.querySelectorAll(".db-card").forEach(c=>c.classList.toggle("db-selected",c.dataset.card===page.id));
+      this.drag={
+        type:"resize",id:page.id,pointerId:event.pointerId,
+        clientX:event.clientX,clientY:event.clientY,
+        width:d.width,height:d.height,rotation:d.rotation||0,changed:false,target:card
+      };
+      card.setPointerCapture(event.pointerId);
+      card.classList.add("db-resizing");
+      return;
+    }
     if(isPan || (!card && !event.target.closest(".db-wire") && event.button===0)) {
       event.preventDefault();this.drag={type:"pan",pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,origin:{...this.offset}};
       viewport.setPointerCapture(event.pointerId);return;
@@ -253,6 +306,18 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       this.offset.x=this.drag.origin.x+event.clientX-this.drag.clientX;
       this.offset.y=this.drag.origin.y+event.clientY-this.drag.clientY;
       this.applyViewport();return;
+    }
+    if(this.drag.type==="resize") {
+      const size=cardResizeDimensions(this.drag.width,this.drag.height,
+        (event.clientX-this.drag.clientX)/this.scale,
+        (event.clientY-this.drag.clientY)/this.scale,this.drag.rotation);
+      const card=this.element.querySelector(`[data-card="${this.drag.id}"]`);
+      if(card){card.style.width=`${size.width}px`;card.style.height=`${size.height}px`;}
+      this.drag.last=size;
+      this.drag.changed=size.width!==this.drag.width||size.height!==this.drag.height;
+      const page=this.board.pages.get(this.drag.id),original=DBStore.entry(page);
+      if(original)this.drawPreviewLinks(this.drag.id,{...original,...size});
+      return;
     }
     const x=this.drag.x+(event.clientX-this.drag.clientX)/this.scale;
     const y=this.drag.y+(event.clientY-this.drag.clientY)/this.scale;
@@ -276,7 +341,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       const ax=a.x+a.width/2,ay=a.y+a.height/2,bx=b.x+b.width/2,by=b.y+b.height/2;
       const cx=(ax+bx)/2,cy=(ay+by)/2+Math.min(28,Math.hypot(bx-ax,by-ay)*.08);
       const line=root.querySelector(`.db-wire[data-link="${page.id}"]`);
-      line?.querySelector("path")?.setAttribute("d",`M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}`);
+      line?.querySelectorAll("path").forEach(path=>path.setAttribute("d",`M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}`));
       const text=line?.querySelector("text");if(text){text.setAttribute("x",cx);text.setAttribute("y",cy-9);}
       const circles=line?.querySelectorAll("circle");
       if(circles?.length===2) {circles[0].setAttribute("cx",ax);circles[0].setAttribute("cy",ay);circles[1].setAttribute("cx",bx);circles[1].setAttribute("cy",by);}
@@ -288,12 +353,18 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const viewport=this.element?.querySelector(".db-viewport");
     const captured=drag.target??viewport;
     if(captured?.hasPointerCapture(event.pointerId))captured.releasePointerCapture(event.pointerId);
-    if(drag.type==="card" && drag.changed && drag.last) {
+    if((drag.type==="card"||drag.type==="resize") && drag.changed && drag.last) {
       const page=this.board?.pages.get(drag.id);
       if(page) {
         this.setSaving("saving");
-        try {await DBStore.updateCard(page,{x:Math.round(drag.last.x),y:Math.round(drag.last.y)});
-          DBStore.activity(this.board,"move",page.name);this.setSaving("saved");}
+        try {
+          const patch=drag.type==="resize"
+            ? {width:drag.last.width,height:drag.last.height}
+            : {x:Math.round(drag.last.x),y:Math.round(drag.last.y)};
+          await DBStore.updateCard(page,patch);
+          DBStore.activity(this.board,drag.type==="resize"?"resize":"move",page.name);
+          this.setSaving("saved");
+        }
         catch(error){this.setSaving("error");notifyError(error);}
       }
     }
@@ -351,9 +422,9 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       <label>Тип<select name="type">${possibleTypes.map(k=>`<option value="${k}">${kindLabels[k]}</option>`).join("")}</select></label>
       <label>Название<input name="title" maxlength="100" value="Новая улика" required></label>
       <label>Описание<textarea name="description" rows="4"></textarea></label>
-      <label>Изображение (путь в Foundry или URL)<input name="image" placeholder="icons/svg/mystery-man.svg"></label>
+      ${imageFieldHTML("")}
       <label>Теги (через запятую)<input name="tags" placeholder="подозреваемый, свидетель"></label>
-      </div>`,ok:{label:"Добавить",callback:(_e,b)=>({type:b.form.elements.type.value,title:b.form.elements.title.value,
+      </div>`,render:bindImagePicker,ok:{label:"Добавить",callback:(_e,b)=>({type:b.form.elements.type.value,title:b.form.elements.title.value,
         description:b.form.elements.description.value,image:b.form.elements.image.value,
         tags:b.form.elements.tags.value.split(",").map(x=>x.trim()).filter(Boolean)})}});
     if(!result)return;
@@ -376,7 +447,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       <label>Название<input name="title" value="${escapeHTML(page.name)}" maxlength="100" ${disable}></label>
       <label>Тип<select name="type" ${disable}>${possibleTypes.map(k=>`<option value="${k}" ${entry.type===k?"selected":""}>${kindLabels[k]}</option>`).join("")}</select></label>
       <label>Краткое описание<textarea name="description" rows="4" ${disable}>${escapeHTML(entry.description||"")}</textarea></label>
-      <label>Изображение<input name="image" value="${escapeHTML(entry.image||"")}" ${disable}></label>
+      ${imageFieldHTML(entry.image||"",editable)}
       <label>Общие заметки<textarea name="notes" rows="4" ${disable}>${escapeHTML(entry.notes||"")}</textarea></label>
       <label>Теги через запятую<input name="tags" value="${escapeHTML((entry.tags||[]).join(", "))}" ${disable}></label>
       <label>Мои личные заметки<textarea name="personal" rows="3" ${DBStore.canCreate()||DBStore.getPersonalDoc(board)?"":"disabled"}>${escapeHTML(personalText)}</textarea></label>
@@ -384,7 +455,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       ${otherNotes?`<details><summary>Личные заметки других участников (GM)</summary>${otherNotes}</details>`:""}
       ${entry.sourceUuid?`<div class="db-source">Источник: <code>${escapeHTML(entry.sourceUuid)}</code></div>`:""}
       ${!editable?"<p class=\"db-info\">Доска доступна только для просмотра. Можно менять только личные заметки.</p>":""}
-      </div>`,ok:{label:"Сохранить",callback:(_e,b)=>({title:b.form.elements.title.value,type:b.form.elements.type.value,
+      </div>`,render:bindImagePicker,ok:{label:"Сохранить",callback:(_e,b)=>({title:b.form.elements.title.value,type:b.form.elements.type.value,
         description:b.form.elements.description.value,notes:b.form.elements.notes.value,
         image:b.form.elements.image.value,tags:b.form.elements.tags.value.split(",").map(v=>v.trim()).filter(Boolean),
         personal:b.form.elements.personal.value,archive:editable?!!b.form.elements.archive.checked:false})}});
@@ -426,13 +497,20 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     if(!e||e.kind!=="link")return;
     if(!this.writable)return ui.notifications.info(e.label);
     const result=await ask({window:{title:"Настройки нити"},content:`<div class="db-dialog"><label>Подпись<input name="label" maxlength="100" value="${escapeHTML(e.label||"")}"></label>
-      <label>Цвет<input name="color" type="color" value="${validColor(e.color)}"></label></div>`,
-      ok:{label:"Сохранить",callback:(_ev,b)=>({label:b.form.elements.label.value,color:b.form.elements.color.value})}});
-    if(result) {
-      await page.update({name:result.label,[`flags.${MOD}.entry`]:{...e,label:result.label,color:validColor(result.color),revision:(e.revision||0)+1}});
-      this.renderCanvas();
+      <label>Цвет<input name="color" type="color" value="${validColor(e.color)}"></label>
+      <label class="db-link-remove"><input type="checkbox" name="remove"> Удалить эту нить</label></div>`,
+      ok:{label:"Сохранить",callback:(_ev,b)=>({label:b.form.elements.label.value,color:b.form.elements.color.value,
+        remove:b.form.elements.remove.checked})}});
+    if(!result)return;
+    if(result.remove) {
+      if(await confirm("Удалить эту связь?", "Удаление нити")) {
+        await DBStore.deleteLink(page);this.renderCanvas();
+      }
+      return;
     }
-    if(await confirm("Удалить эту связь?", "Удаление нити")) {await DBStore.deleteLink(page);this.renderCanvas();}
+    await page.update({name:result.label,[`flags.${MOD}.entry`]:{...e,label:result.label,color:validColor(result.color),revision:(e.revision||0)+1}});
+    DBStore.activity(board,"edit-link",result.label);
+    this.renderCanvas();
   }
   exportBoard() {
     const board=this.board;if(!board)return;

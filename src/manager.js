@@ -37,7 +37,7 @@ export class BoardManager extends foundry.applications.api.ApplicationV2 {
           <div class="db-board-foot"><span><i class="fa-solid fa-${isOwner?"pen-to-square":"eye"}"></i> ${isOwner?"Редактирование":"Просмотр"} · ${num} улик</span>
           <button data-action="options" data-id="${b.id}" title="Настройки"><i class="fa-solid fa-ellipsis"></i></button></div></div>
         </article>`;}).join("") : `<div class="db-empty"><i class="fa-solid fa-thumbtack"></i><h3>Досок пока нет</h3><p>Создайте первую доску или импортируйте JSON.</p></div>`}</div>
-      <footer class="db-manager-footer">Detective Board v0.1.2 · Foundry VTT 13</footer>`;
+      <footer class="db-manager-footer">Detective Board v0.1.3 · Foundry VTT 13</footer>`;
     return root;
   }
   _replaceHTML(result, content) {

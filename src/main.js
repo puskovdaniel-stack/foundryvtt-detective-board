@@ -38,7 +38,7 @@ Hooks.once("ready", () => {
   if(game.user.isGM) DBStore.ensureStorageFolder({migrate:true})
     .catch(err=>console.warn(`${MOD} | Cannot initialize journal folder`,err));
   const mod=game.modules.get(MOD);
-  if(mod) mod.api={open:launch,version:"0.1.2"};
+  if(mod) mod.api={open:launch,version:"0.1.3"};
   Hooks.on("createJournalEntryPage",page=>{
     if(page.parent?.getFlag(MOD,"board")?.kind==="board")rerenderEditors(page.parent.id);
   });

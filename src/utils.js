@@ -37,6 +37,15 @@ export function safeImage(value = "") {
   if (!s || /^(?:javascript|data|blob|file):/i.test(s)) return "";
   return /^(https?:\/\/|\/|\.\.?\/|[a-zA-Z0-9_\-]+\/)/.test(s) ? escapeHTML(s) : "";
 }
+// Pointer deltas are projected onto a rotated card's local axes.
+export function cardResizeDimensions(width,height,deltaX,deltaY,rotation=0) {
+  const angle=(Number(rotation)||0)*Math.PI/180;
+  const cos=Math.cos(angle),sin=Math.sin(angle);
+  return {
+    width:Math.round(clamp(Number(width)+(Number(deltaX)||0)*cos+(Number(deltaY)||0)*sin,160,620)),
+    height:Math.round(clamp(Number(height)-(Number(deltaX)||0)*sin+(Number(deltaY)||0)*cos,130,740))
+  };
+}
 export function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
 export function own(object, prop) { return Object.prototype.hasOwnProperty.call(object, prop); }
 export function notifyError(error) {

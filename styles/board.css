@@ -194,3 +194,24 @@
 .db-app .window-header button.db-close-x > i,
 .db-app .window-header button.db-close-x > svg {display:none !important;}
 .db-app .window-header button:not(.db-close-x) {display:none !important;}
+
+/* Drag the bottom-right corner of any editable evidence card to resize. */
+.db-resize-handle {
+  position:absolute;right:2px;bottom:2px;width:23px;height:23px;
+  cursor:nwse-resize;z-index:6;touch-action:none;
+  border-right:4px solid #9b4938;border-bottom:4px solid #9b4938;
+  border-radius:0 0 3px 0;
+  background:linear-gradient(135deg,transparent 45%,#bb8d57 46%,#bb8d57 52%,transparent 53%);
+}
+.db-resize-handle:hover,.db-card.db-resizing .db-resize-handle {border-color:#f2af58;}
+.db-card.db-resizing {z-index:60;box-shadow:4px 12px 18px #1c0d0bc0;}
+.db-wire-hit {pointer-events:stroke;cursor:pointer;}
+.db-wire-hit:hover + .db-wire-label {fill:#fff;}
+.db-image-picker {display:flex;gap:7px;align-items:center;min-width:0;}
+.db-image-picker input {flex:1;min-width:0;}
+.db-image-picker button {flex:none;width:auto!important;min-width:90px;}
+.db-image-preview {display:block;width:100%;max-height:150px;object-fit:contain;margin-top:5px;
+  border:1px solid #776b57;background:#231d18;border-radius:4px;}
+.db-image-preview[hidden] {display:none!important;}
+.db-dialog .db-link-remove {flex-direction:row;align-items:center;color:#b76b59;}
+.db-dialog .db-link-remove input {width:auto;}

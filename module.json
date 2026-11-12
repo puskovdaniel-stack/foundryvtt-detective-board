@@ -2,7 +2,7 @@
   "id": "detective-board",
   "title": "Detective Board",
   "description": "Collaborative corkboard for investigations, clues, notes and connections in Foundry VTT 13.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "authors": [{ "name": "Detective Board contributors" }],
   "compatibility": { "minimum": "13", "verified": "13", "maximum": "13" },
   "esmodules": ["src/main.js"],
