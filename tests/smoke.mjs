@@ -50,7 +50,7 @@ assert.equal(draggedDocumentUUID({type:"Macro",id:"abc"}),null);
 // Regression: long evidence dialogs must use bounded dimensions and a scrollable class.
 let observedDialog;
 globalThis.window={innerWidth:720,innerHeight:520};
-foundry.applications.api={DialogV2:{prompt:async options=>{observedDialog=options;return null;}}};
+foundry.applications={api:{DialogV2:{prompt:async options=>{observedDialog=options;return null;}}}};
 await ask({window:{title:"Новая улика"},content:'<div class="db-dialog"><textarea name="description"></textarea></div>'});
 assert.equal(observedDialog.position.width,540);
 assert.equal(observedDialog.position.height,456);
