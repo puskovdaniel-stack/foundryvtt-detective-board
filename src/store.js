@@ -7,6 +7,25 @@ const MAX_SNAPSHOTS = 12;
 const docFlag = d => d?.getFlag(MOD, "entry") ?? null;
 
 export const DBStore = {
+  storageFolder() {
+    return (game.folders?.contents || []).find(f => f.type==="JournalEntry" && f.getFlag(MOD,"storageFolder"))
+      || (game.folders?.contents || []).find(f => f.type==="JournalEntry" && f.name==="Detective Board") || null;
+  },
+  async ensureStorageFolder({migrate=false}={}) {
+    let folder=this.storageFolder();
+    if(!folder) {
+      const cls=foundry.documents.Folder;
+      if(!cls?.canUserCreate?.(game.user)) throw new Error("Нужна папка Detective Board. Попросите GM зайти в мир, чтобы создать её.");
+      folder=await cls.create({name:"Detective Board",type:"JournalEntry",color:"#926b47",flags:{[MOD]:{storageFolder:true}}});
+    }
+    if(migrate && game.user.isGM) {
+      for(const j of game.journal.contents) {
+        if(j.getFlag(MOD,"board")?.kind!=="board" && !j.getFlag(MOD,"personal")) continue;
+        if((j.folder?.id ?? j.folder)!==folder.id) await j.update({folder:folder.id});
+      }
+    }
+    return folder;
+  },
   listBoards() {
     return game.journal.contents.filter(j => j.getFlag(MOD, "board")?.kind === "board"
       && j.testUserPermission(game.user, "OBSERVER")).sort((a, b) => a.name.localeCompare(b.name));
@@ -35,8 +54,9 @@ export const DBStore = {
     const defaultLevel = {private: 0, view: 2, shared: 3, custom: 0}[access] ?? 0;
     const ownership = { default: defaultLevel, [game.user.id]: OWNER };
     for (const [userId, value] of Object.entries(selected)) ownership[userId] = clamp(value, 0, 3);
+    const folder=await this.ensureStorageFolder();
     const doc = await foundry.documents.JournalEntry.create({
-      name: name.trim().slice(0, 100), ownership,
+      name: name.trim().slice(0, 100), ownership, folder:folder.id,
       flags: { [MOD]: { board: {
         kind: "board", schemaVersion: VERSION, description: String(description).slice(0, 1500),
         theme, template, createdBy: game.user.id, createdAt: Date.now()
@@ -172,9 +192,10 @@ export const DBStore = {
     const existing=this.getPersonalDoc(board);
     if (existing) return existing;
     if (!this.canCreate()) throw new Error("Для личных заметок нужны права на создание журналов.");
+    const folder=await this.ensureStorageFolder();
     return await foundry.documents.JournalEntry.create({
       name:`Личные заметки: ${board.name} (${game.user.name})`,
-      ownership:{default:0,[game.user.id]:OWNER},
+      ownership:{default:0,[game.user.id]:OWNER}, folder:folder.id,
       flags:{[MOD]:{personal:{boardId:board.id,ownerId:game.user.id,schemaVersion:VERSION}}}
     });
   },

@@ -1,6 +1,7 @@
 import {MOD, notifyError} from "./utils.js";
 import {openManager} from "./manager.js";
 import {activeEditors} from "./editor.js";
+import {DBStore} from "./store.js";
 
 function launch() { return openManager(); }
 function rerenderEditors(boardId) {
@@ -34,6 +35,8 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  if(game.user.isGM) DBStore.ensureStorageFolder({migrate:true})
+    .catch(err=>console.warn(`${MOD} | Cannot initialize journal folder`,err));
   const mod=game.modules.get(MOD);
   if(mod) mod.api={open:launch,version:"0.1.0"};
   Hooks.on("createJournalEntryPage",page=>{

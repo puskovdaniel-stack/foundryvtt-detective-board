@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {escapeHTML, safeImage, cardPosition, boardDialogPosition} from '../src/utils.js';
+import {escapeHTML, safeImage, cardPosition, boardDialogPosition, draggedDocumentUUID} from '../src/utils.js';
 let next=0;
 const clone = x=>structuredClone(x);
 function mergeDotted(target, patch) {
@@ -14,6 +14,12 @@ class Page {
   getFlag(scope,key) {return this.flags[scope]?.[key];}
   async update(patch) {mergeDotted(this,patch);return this;}
 }
+class Folder {
+  static canUserCreate() {return true;}
+  static async create(d) {const f=new Folder(d);game.folders.contents.push(f);return f;}
+  constructor(d) {this.id=`folder${++next}`;this.name=d.name;this.type=d.type;this.flags=clone(d.flags||{});}
+  getFlag(scope,key) {return this.flags[scope]?.[key];}
+}
 class Journal {
   static canUserCreate() {return true;}
   static async create(data) {
@@ -23,7 +29,7 @@ class Journal {
   }
   constructor(data) {
     this.id=`journal${++next}`;this.name=data.name;this.ownership=clone(data.ownership||{});
-    this.flags=clone(data.flags||{});this._pages=[];
+    this.flags=clone(data.flags||{});this.folder=data.folder??null;this._pages=[];
     this.pages={contents:this._pages,get:id=>this._pages.find(p=>p.id===id)};
   }
   getFlag(scope,key) {return this.flags[scope]?.[key];}
@@ -33,17 +39,22 @@ class Journal {
   async update(patch) {mergeDotted(this,patch);return this;}
   async setFlag(scope,key,value){(this.flags[scope]??={})[key]=clone(value);return this;}
 }
-globalThis.foundry={documents:{JournalEntry:Journal}};
-globalThis.game={user:{id:'u1',name:'Player',isGM:false},journal:{contents:[],get(id){return this.contents.find(x=>x.id===id);}},users:{contents:[{id:'u1',name:'Player',isGM:false},{id:'u2',name:'Second',isGM:false} ],get(id){return this.contents.find(x=>x.id===id);}}};
+globalThis.foundry={documents:{JournalEntry:Journal,Folder}};
+globalThis.game={user:{id:'u1',name:'Player',isGM:false},journal:{contents:[],get(id){return this.contents.find(x=>x.id===id);}},folders:{contents:[]},users:{contents:[{id:'u1',name:'Player',isGM:false},{id:'u2',name:'Second',isGM:false} ],get(id){return this.contents.find(x=>x.id===id);}}};
 assert.equal(escapeHTML('<a "test">'), '&lt;a &quot;test&quot;&gt;');
 assert.equal(safeImage('javascript:alert(1)'), '');
 assert.deepEqual(cardPosition(4), {x:170,y:390});
+assert.equal(draggedDocumentUUID({type:"Scene",id:"abc"}),"Scene.abc");
+assert.equal(draggedDocumentUUID({type:"Scene",uuid:"Scene.xy"}),"Scene.xy");
+assert.equal(draggedDocumentUUID({type:"Macro",id:"abc"}),null);
 assert.deepEqual(boardDialogPosition(1920,1080), {width:540,height:640});
 assert.deepEqual(boardDialogPosition(800,600), {width:540,height:536});
 assert.deepEqual(boardDialogPosition(360,450), {width:328,height:386});
 const {DBStore}=await import('../src/store.js');
 const board=await DBStore.createBoard({name:'Case One',access:'shared',template:'case'});
 assert.equal(DBStore.listBoards().length,1);
+assert.equal(game.folders.contents.length,1);
+assert.equal(board.folder,game.folders.contents[0].id);
 assert.equal(DBStore.cards(board).length,3);
 assert.ok(board.testUserPermission(game.users.get('u2'),'OWNER'));
 const alice=await DBStore.createCard(board,{title:'Alice',type:'actor',description:'Missing witness',x:320,y:290,tags:['suspect']});
@@ -61,6 +72,7 @@ assert.equal(DBStore.links(board).length,1);
 await DBStore.savePersonalNote(board,alice.id,'Only me');
 const personal=DBStore.getPersonalDoc(board);
 assert.equal(personal.ownership.default,0);
+assert.equal(personal.folder,board.folder);
 assert.equal(DBStore.entry(DBStore.getPersonalNote(board,alice.id)).text,'Only me');
 const exportPayload=DBStore.exportData(board);
 assert.equal(exportPayload.links.length,1);
@@ -69,5 +81,10 @@ assert.ok(!JSON.stringify(exportPayload).includes('Only me'));
 const imported=await DBStore.importData(exportPayload);
 assert.equal(DBStore.cards(imported).length,5);
 assert.equal(DBStore.links(imported).length,1);
+assert.equal(imported.folder,board.folder);
+const legacy=await Journal.create({name:"Legacy board",ownership:{default:3},flags:{"detective-board":{board:{kind:"board"}}}});
+game.user.isGM=true;
+await DBStore.ensureStorageFolder({migrate:true});
+assert.equal(legacy.folder,board.folder);
 assert.ok(DBStore.cards(imported).every(p=>!DBStore.entry(p).sourceUuid));
 console.log('SMOKE OK - boards, access, templates, CRUD, links, archive, notes, export/import');

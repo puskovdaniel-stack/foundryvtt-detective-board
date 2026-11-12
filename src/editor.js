@@ -1,9 +1,9 @@
-import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD} from "./utils.js";
+import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX} from "./utils.js";
 import {DBStore} from "./store.js";
 
 export const activeEditors = new Set();
-const possibleTypes = ["note","actor","item","journal","image","hypothesis"];
-const kindLabels = {note:"Записка",actor:"Персонаж",item:"Предмет",journal:"Журнал",image:"Изображение",hypothesis:"Гипотеза"};
+const possibleTypes = ["note","actor","item","journal","scene","image","hypothesis"];
+const kindLabels = {note:"Записка",actor:"Персонаж",item:"Предмет",journal:"Журнал",scene:"Сцена",image:"Изображение",hypothesis:"Гипотеза"};
 
 function validColor(color) { return /^#[0-9a-fA-F]{6}$/.test(String(color)) ? color : "#ad392f"; }
 function numberAttr(n) { return Number.isFinite(+n) ? Number(n) : 0; }
@@ -19,7 +19,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     this.boardId=boardId;
     this.scale=0.85;this.offset={x:235,y:110};
     this.tool="select";this.linkStart=null;this.showLinks=true;
-    this.search="";this.drag=null;this.pendingUpdate=false;
+    this.search="";this.drag=null;this.pendingUpdate=false;this.selectedCardId=null;
     activeEditors.add(this);
   }
   get board() { return DBStore.board(this.boardId); }
@@ -51,13 +51,14 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       </nav>
       <div class="db-viewport ${theme==="dark"?"db-cork-dark":"db-cork-classic"}" tabindex="0" aria-label="Полотно детективной доски">
         <div class="db-world"><svg class="db-link-layer" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10000 10000" preserveAspectRatio="xMinYMin meet"></svg><div class="db-card-layer"></div></div>
-        <div class="db-canvas-tip">${this.writable?"Перетащите Actor, Item или Journal сюда · Нажмите «нить» для соединения карточек":"Только просмотр · Масштабирование колесом мыши"}</div>
+        <div class="db-canvas-tip">${this.writable?"Перетащите Actor, Item, Journal или Scene сюда · Нажмите «нить» для соединения карточек":"Только просмотр · Масштабирование колесом мыши"}</div>
       </div>
       <aside class="db-inspector"><div class="db-inspector-title"><i class="fa-solid fa-magnifying-glass"></i> Поиск улик</div>
       <input type="search" data-role="card-search" placeholder="Название или тег" value="${escapeHTML(this.search)}" />
       <div class="db-inspector-content"><p><b>Карточки</b>: <span data-value="cards">0</span></p>
       <p><b>Связи</b>: <span data-value="links">0</span></p>
       <hr/><p class="db-tip">Дважды нажмите карточку для заметок и описания.</p>
+      <p class="db-tip">Выберите карточку и нажмите Delete, чтобы отправить её в корзину.</p>
       <p class="db-tip">Колесо мыши - масштаб. Средняя кнопка - перемещение доски.</p>
       <p class="db-tip">Связи подписываются. Нажмите на подпись, чтобы изменить или удалить нить.</p>
       </div></aside></div>
@@ -67,6 +68,8 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   }
   _replaceHTML(result, content) {
     content.replaceChildren(result);
+    showWindowCloseX(this);
+    result.addEventListener("keydown",event=>this.onKeyDown(event));
     result.addEventListener("click",e=>this.onClick(e));
     result.addEventListener("dblclick",e=>this.onDoubleClick(e));
     result.addEventListener("pointerdown",e=>this.onPointerDown(e));
@@ -93,6 +96,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     });
     const visible=new Set(cards.map(c=>c.id));
     const links=DBStore.links(board).filter(p=>visible.has(DBStore.entry(p).from)&&visible.has(DBStore.entry(p).to));
+    if(this.selectedCardId && !visible.has(this.selectedCardId)) this.selectedCardId=null;
     root.querySelector(".db-card-layer").innerHTML=cards.map(p=>this.cardHTML(p)).join("");
     root.querySelector(".db-link-layer").innerHTML=this.showLinks?links.map(p=>this.linkHTML(p)).join(""):"";
     root.querySelector('[data-value="cards"]').textContent=DBStore.cards(board).length;
@@ -102,8 +106,8 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   cardHTML(page) {
     const d=DBStore.entry(page),src=safeImage(d.image),type=possibleTypes.includes(d.type)?d.type:"note";
     const tags=(d.tags||[]).slice(0,3).map(v=>`<span class="db-tag">${escapeHTML(v)}</span>`).join("");
-    return `<article class="db-card db-card-${type}" data-card="${page.id}" style="left:${numberAttr(d.x)}px;top:${numberAttr(d.y)}px;width:${clamp(d.width,160,620)}px;height:${clamp(d.height,130,740)}px;transform:rotate(${clamp(d.rotation,-30,30)}deg)">
-      <span class="db-pin"></span><div class="db-card-head" title="Перетащить"><i class="fa-solid fa-${type==="actor"?"user-secret":type==="item"?"box":type==="image"?"image":type==="journal"?"book":type==="hypothesis"?"lightbulb":"note-sticky"}"></i>
+    return `<article class="db-card db-card-${type}${this.selectedCardId===page.id?" db-selected":""}" data-card="${page.id}" style="left:${numberAttr(d.x)}px;top:${numberAttr(d.y)}px;width:${clamp(d.width,160,620)}px;height:${clamp(d.height,130,740)}px;transform:rotate(${clamp(d.rotation,-30,30)}deg)">
+      <span class="db-pin"></span><div class="db-card-head" title="Перетащить"><i class="fa-solid fa-${type==="actor"?"user-secret":type==="item"?"box":type==="image"?"image":type==="journal"?"book":type==="scene"?"map":type==="hypothesis"?"lightbulb":"note-sticky"}"></i>
        <strong>${escapeHTML(page.name)}</strong>${d.sourceUuid?`<button type="button" class="db-source-button" data-action="source" data-id="${page.id}" title="Открыть источник"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>`:""}</div>
       ${src?`<div class="db-card-image"><img src="${src}" alt="" loading="lazy" draggable="false"></div>`:""}
       <div class="db-card-description">${escapeHTML(d.description||"")}</div>
@@ -173,6 +177,16 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const link=event.target.closest("[data-link]");
     if(link) {await this.editLink(link.dataset.link);return;}
     const card=event.target.closest("[data-card]");
+    if(card && this.tool==="select") {
+      this.selectedCardId=card.dataset.card;
+      root.querySelectorAll(".db-card").forEach(c=>c.classList.toggle("db-selected",c.dataset.card===this.selectedCardId));
+      root.querySelector(".db-viewport")?.focus({preventScroll:true});
+      return;
+    }
+    if(!card && this.tool==="select" && event.target.closest(".db-viewport")) {
+      this.selectedCardId=null;
+      root.querySelectorAll(".db-card").forEach(c=>c.classList.remove("db-selected"));
+    }
     if(card && this.tool==="link" && this.writable) {
       const cardId=card.dataset.card;
       if(!this.linkStart) this.linkStart=cardId;
@@ -181,6 +195,26 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
         try {await this.connect(start,cardId);}catch(error){notifyError(error);}
       } else this.linkStart=null;
       this.linkStatus();
+    }
+  }
+  async onKeyDown(event) {
+    if(!["Delete","Backspace"].includes(event.key) || !this.selectedCardId || !this.writable) return;
+    if(event.target.closest("input,textarea,select,button,[contenteditable='true']")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(this.drag) return;
+    const page=this.board?.pages.get(this.selectedCardId);
+    if(!page || DBStore.entry(page)?.kind!=="card") return;
+    this.selectedCardId=null;
+    this.setSaving("saving");
+    try {
+      await DBStore.archiveCard(page);
+      this.setSaving("saved");
+      this.renderCanvas();
+    } catch(error) {
+      this.selectedCardId=page.id;
+      this.setSaving("error");
+      notifyError(error);
     }
   }
   linkStatus() {
@@ -206,6 +240,9 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const page=this.board.pages.get(card.dataset.card),d=DBStore.entry(page);
     if(!page||!d) return;
     event.preventDefault();
+    this.selectedCardId=page.id;
+    viewport.focus({preventScroll:true});
+    this.element.querySelectorAll(".db-card").forEach(c=>c.classList.toggle("db-selected",c.dataset.card===page.id));
     this.drag={type:"card",id:page.id,pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,x:d.x,y:d.y,changed:false,target:card};
     card.setPointerCapture(event.pointerId);
     card.classList.add("db-dragging");
@@ -290,14 +327,15 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     event.preventDefault();if(!this.writable)return;
     try {
       const data=TextEditor.getDragEventData(event);
-      if(!data?.uuid||!["Actor","Item","JournalEntry","JournalEntryPage"].includes(data.type)) return;
-      const doc=await fromUuid(data.uuid);
+      const uuid=draggedDocumentUUID(data);
+      if(!uuid) return;
+      const doc=await fromUuid(uuid);
       if(!doc||!doc.testUserPermission(game.user,"OBSERVER"))return ui.notifications.warn("Нет доступа к исходному документу.");
       const board=this.board;
       // Do not expose a source UUID which some board viewers cannot read.
       const visibleUsers=game.users.contents.filter(u=>!u.isGM&&board.testUserPermission(u,"OBSERVER"));
       const allCanRead=visibleUsers.every(u=>doc.testUserPermission(u,"OBSERVER"));
-      const img=doc.img||doc.src||"";
+      const img=doc.thumb||doc.img||doc.background?.src||doc.src||"";
       const pos=this.getCoords(event);
       this.setSaving("saving");
       await DBStore.createCard(board,{title:doc.name,type:data.type.startsWith("Journal")?"journal":data.type.toLowerCase(),

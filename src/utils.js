@@ -2,6 +2,19 @@ export const MOD = "detective-board";
 export const VERSION = 1;
 export const OWNER = 3;
 export const OBSERVER = 2;
+export const DRAG_TYPES = ["Actor","Item","JournalEntry","JournalEntryPage","Scene"];
+export function draggedDocumentUUID(data) {
+  if (!DRAG_TYPES.includes(data?.type)) return null;
+  return (typeof data.uuid === "string" && data.uuid) || (data.id ? `${data.type}.${data.id}` : null);
+}
+export function showWindowCloseX(app) {
+  const close = app.window?.close;
+  if (!close) return;
+  close.textContent = "×";
+  close.classList.add("db-close-x");
+  close.setAttribute("aria-label","Закрыть");
+  close.title = "Закрыть";
+}
 
 // Keep long Foundry dialogs within the available screen size.
 export function boardDialogPosition(viewportWidth = 1024, viewportHeight = 768) {

@@ -1,4 +1,4 @@
-import {escapeHTML, ask, confirm, notifyError, usersHTML, readUserPermissions, MOD, downloadText, boardDialogPosition} from "./utils.js";
+import {escapeHTML, ask, confirm, notifyError, usersHTML, readUserPermissions, MOD, downloadText, boardDialogPosition, showWindowCloseX} from "./utils.js";
 import {DBStore} from "./store.js";
 import {BoardEditor, activeEditors} from "./editor.js";
 
@@ -42,6 +42,7 @@ export class BoardManager extends foundry.applications.api.ApplicationV2 {
   }
   _replaceHTML(result, content) {
     content.replaceChildren(result);
+    showWindowCloseX(this);
     result.querySelector('[data-role="search"]')?.addEventListener("input",e=>{
       this.filter=e.target.value;
       const tiles=result.querySelectorAll(".db-board-tile");

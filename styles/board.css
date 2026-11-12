@@ -144,3 +144,12 @@
 .db-board-form-dialog .window-content > form > footer {
   flex:0 0 auto;
 }
+
+.db-app .window-header button.db-close-x {
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:28px;width:28px;height:28px;padding:0;
+  border:0;background:transparent;color:#efdabc;
+  font:24px/1 Arial,sans-serif;
+}
+.db-app .window-header button.db-close-x:hover {background:#71472f;color:white;}
+.db-card.db-selected {outline:3px solid #f9d478;outline-offset:3px;}
