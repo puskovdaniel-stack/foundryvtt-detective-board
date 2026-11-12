@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {escapeHTML, safeImage, cardPosition} from '../src/utils.js';
+import {escapeHTML, safeImage, cardPosition, boardDialogPosition} from '../src/utils.js';
 let next=0;
 const clone = x=>structuredClone(x);
 function mergeDotted(target, patch) {
@@ -38,6 +38,9 @@ globalThis.game={user:{id:'u1',name:'Player',isGM:false},journal:{contents:[],ge
 assert.equal(escapeHTML('<a "test">'), '&lt;a &quot;test&quot;&gt;');
 assert.equal(safeImage('javascript:alert(1)'), '');
 assert.deepEqual(cardPosition(4), {x:170,y:390});
+assert.deepEqual(boardDialogPosition(1920,1080), {width:540,height:640});
+assert.deepEqual(boardDialogPosition(800,600), {width:540,height:536});
+assert.deepEqual(boardDialogPosition(360,450), {width:328,height:386});
 const {DBStore}=await import('../src/store.js');
 const board=await DBStore.createBoard({name:'Case One',access:'shared',template:'case'});
 assert.equal(DBStore.listBoards().length,1);

@@ -1,4 +1,4 @@
-import {escapeHTML, ask, confirm, notifyError, usersHTML, readUserPermissions, MOD, downloadText} from "./utils.js";
+import {escapeHTML, ask, confirm, notifyError, usersHTML, readUserPermissions, MOD, downloadText, boardDialogPosition} from "./utils.js";
 import {DBStore} from "./store.js";
 import {BoardEditor, activeEditors} from "./editor.js";
 
@@ -74,7 +74,11 @@ export class BoardManager extends foundry.applications.api.ApplicationV2 {
   }
   async createBoard() {
     if(!DBStore.canCreate()) return ui.notifications.warn("GM должен разрешить вашему игроку создание Journal Entries.");
-    const result=await ask({window:{title:"Новая детективная доска"},content:`
+    const result=await ask({
+      classes:["db-board-form-dialog"],
+      position:boardDialogPosition(window.innerWidth,window.innerHeight),
+      window:{title:"Новая детективная доска",resizable:true},
+      content:`
       <div class="db-dialog"><label>Название<input name="title" required maxlength="100" value="Новое расследование"></label>
       <label>Описание<textarea name="description" rows="2" maxlength="1500"></textarea></label>
       <label>Доступ<select name="access"><option value="private">Личная (по умолчанию)</option><option value="shared">Общая - все владельцы</option><option value="view">Просмотр всем</option><option value="custom">Выборочный доступ</option></select></label>
@@ -98,7 +102,11 @@ export class BoardManager extends foundry.applications.api.ApplicationV2 {
     const board=DBStore.board(boardId);if(!board) return;
     if(!DBStore.canEdit(board)) return ui.notifications.info("У вас доступ только на просмотр.");
     const meta=board.getFlag(MOD,"board")||{};
-    const res=await ask({window:{title:`Настройки: ${board.name}`},content:`
+    const res=await ask({
+      classes:["db-board-form-dialog"],
+      position:boardDialogPosition(window.innerWidth,window.innerHeight),
+      window:{title:`Настройки: ${board.name}`,resizable:true},
+      content:`
       <div class="db-dialog"><label>Название<input name="title" maxlength="100" value="${escapeHTML(board.name)}"></label>
       <label>Описание<textarea name="description" rows="2">${escapeHTML(meta.description||"")}</textarea></label>
       <label>Оформление<select name="theme"><option value="classic" ${meta.theme!=="dark"?"selected":""}>Классическая</option><option value="dark" ${meta.theme==="dark"?"selected":""}>Тёмная</option></select></label>

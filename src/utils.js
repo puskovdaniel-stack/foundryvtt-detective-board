@@ -3,6 +3,14 @@ export const VERSION = 1;
 export const OWNER = 3;
 export const OBSERVER = 2;
 
+// Keep long Foundry dialogs within the available screen size.
+export function boardDialogPosition(viewportWidth = 1024, viewportHeight = 768) {
+  return {
+    width: Math.max(160, Math.min(540, Math.floor(viewportWidth) - 32)),
+    height: Math.max(160, Math.min(640, Math.floor(viewportHeight) - 64))
+  };
+}
+
 export function escapeHTML(value = "") {
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 }

@@ -97,3 +97,50 @@
 
 .db-app .db-source-button { min-height:21px; height:21px; width:23px; min-width:23px; padding:1px; font-size:11px; flex:none; color:#6b5140; background:transparent; border:0; }
 .db-app .db-source-button:hover { color:#ab4b33; background:#dac4a0; }
+
+/* Scrollable board creation/settings dialogs on smaller Foundry v13 viewports. */
+.db-board-form-dialog {
+  max-width:calc(100vw - 24px);
+  max-height:calc(100vh - 24px);
+  max-height:calc(100dvh - 24px);
+}
+.db-board-form-dialog .window-content {
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+.db-board-form-dialog .dialog-form,
+.db-board-form-dialog .window-content > form {
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+.db-board-form-dialog .dialog-content {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.db-board-form-dialog .dialog-content .db-dialog {
+  min-width:0;
+  width:100%;
+  max-height:none;
+  overflow:visible;
+  box-sizing:border-box;
+  padding:8px 10px 12px 4px;
+}
+.db-board-form-dialog form > .db-dialog {
+  min-width:0;
+  max-height:none;
+  min-height:0;
+  flex:1 1 auto;
+  overflow-y:auto;
+}
+.db-board-form-dialog .dialog-buttons,
+.db-board-form-dialog .dialog-form > footer,
+.db-board-form-dialog .window-content > form > footer {
+  flex:0 0 auto;
+}
