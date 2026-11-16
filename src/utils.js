@@ -41,8 +41,20 @@ export function escapeHTML(value = "") {
 }
 export function safeImage(value = "") {
   const s = String(value ?? "").trim();
-  if (!s || /^(?:javascript|data|blob|file):/i.test(s)) return "";
-  return /^(https?:\/\/|\/|\.\.?\/|[a-zA-Z0-9_\-]+\/)/.test(s) ? escapeHTML(s) : "";
+  if (!s || /[\u0000-\u001f\u007f\\]/.test(s)) return "";
+  // Foundry paths are relative to Data and may contain Unicode, spaces and percent escapes.
+  // Reject non-web URI schemes without requiring ASCII-only folder names.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:\/\//i.test(s)) return "";
+  return escapeHTML(s);
+}
+export function documentImagePath(doc,type) {
+  if(type==="Actor" || type==="actor") {
+    const portrait=doc?.img||"";
+    const token=doc?.prototypeToken?.texture?.src||"";
+    // NPCs sometimes use a token image but leave the portrait on Foundry's default.
+    return (!portrait || portrait==="icons/svg/mystery-man.svg") && safeImage(token)?token:portrait;
+  }
+  return [doc?.thumb,doc?.img,doc?.background?.src,doc?.src].find(path=>safeImage(path))||"";
 }
 // Pointer deltas are projected onto a rotated card's local axes.
 export function cardResizeDimensions(width,height,deltaX,deltaY,rotation=0) {

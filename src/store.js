@@ -1,4 +1,4 @@
-import {MOD, VERSION, OWNER, OBSERVER, pageData, cardPosition, clamp, safeImage} from "./utils.js";
+import {MOD, VERSION, OWNER, OBSERVER, pageData, cardPosition, clamp, safeImage, documentImagePath} from "./utils.js";
 
 const latestActivity = new Map();
 const MAX_HISTORY = 100;
@@ -103,24 +103,30 @@ export const DBStore = {
     await page.update({ ...(title !== undefined ? {name: String(title).slice(0,100)} : {}), [`flags.${MOD}.entry`]: entry });
     return page;
   },
-  async restoreActorPortraits(board) {
-    if(!game.user.isGM || !this.canEdit(board)) throw new Error("Восстановить портреты NPC может только GM.");
-    const actorsByName=new Map();
-    for(const actor of game.actors?.contents||[]) {
-      if(!safeImage(actor.img))continue;
-      const matches=actorsByName.get(actor.name)||[];
-      matches.push(actor);actorsByName.set(actor.name,matches);
+  async restoreSourceImages(board) {
+    if(!game.user.isGM || !this.canEdit(board)) throw new Error("Восстановить изображения может только GM.");
+    const imagesByName=new Map();
+    const actors=game.actors?.contents||[];
+    const sources=[...actors.map(doc=>({type:"actor",doc})),
+      ...(game.items?.contents||[]).map(doc=>({type:"item",doc})),
+      ...actors.flatMap(actor=>(actor.items?.contents||[]).map(doc=>({type:"item",doc})))];
+    for(const {type,doc} of sources) {
+      const image=documentImagePath(doc,type);
+      if(!safeImage(image))continue;
+      const key=`${type}\u0000${doc.name}`;
+      const images=imagesByName.get(key)||new Set();
+      images.add(image);imagesByName.set(key,images);
     }
     let restored=0,skipped=0;
     for(const page of this.cards(board)) {
       const card=docFlag(page);
-      if(card.type!=="actor" || card.image || card.sourceUuid)continue;
-      const matches=actorsByName.get(page.name)||[];
-      if(matches.length!==1){skipped++;continue;}
-      await this.updateCard(page,{image:matches[0].img});
+      if(!["actor","item"].includes(card.type) || card.image)continue;
+      const images=imagesByName.get(`${card.type}\u0000${page.name}`);
+      if(images?.size!==1){skipped++;continue;}
+      await this.updateCard(page,{image:[...images][0]});
       restored++;
     }
-    if(restored)this.activity(board,"restore-portraits",`${restored} NPC portraits`);
+    if(restored)this.activity(board,"restore-images",`${restored} card images`);
     return {restored,skipped};
   },
   async createLink(board, from, to, label = "Связано", color = "#ad392f") {

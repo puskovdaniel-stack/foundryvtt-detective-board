@@ -1,4 +1,4 @@
-import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX, cardResizeDimensions, cardPinPosition, boardWindowPosition} from "./utils.js";
+import {escapeHTML, safeImage, documentImagePath, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX, cardResizeDimensions, cardPinPosition, boardWindowPosition} from "./utils.js";
 import {DBStore} from "./store.js";
 
 export const activeEditors = new Set();
@@ -459,19 +459,18 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       // Do not expose a source UUID which some board viewers cannot read.
       const visibleUsers=game.users.contents.filter(u=>!u.isGM&&board.testUserPermission(u,"OBSERVER"));
       const allCanRead=visibleUsers.every(u=>doc.testUserPermission(u,"OBSERVER"));
-      const img=data.type==="Actor"?(doc.img||doc.prototypeToken?.texture?.src||"")
-        :(doc.thumb||doc.img||doc.background?.src||doc.src||"");
-      // Dragging an NPC onto a shared board explicitly publishes its portrait,
-      // not its restricted Actor sheet or hidden UUID.
-      const sharePortrait=data.type==="Actor" && !!safeImage(img);
+      const img=documentImagePath(doc,data.type);
+      // Dragging an Actor or Item explicitly publishes its image on this board,
+      // not the original restricted document or hidden UUID.
+      const shareImage=["Actor","Item"].includes(data.type) && !!safeImage(img);
       const pos=this.getCoords(event);
       this.setSaving("saving");
       await DBStore.createCard(board,{title:doc.name,type:data.type.startsWith("Journal")?"journal":data.type.toLowerCase(),
-        image:allCanRead||sharePortrait?img:"",sourceUuid:allCanRead?doc.uuid:null,
+        image:allCanRead||shareImage?img:"",sourceUuid:allCanRead?doc.uuid:null,
         description:allCanRead?"":"Публичное описание заполните вручную.",x:pos.x,y:pos.y});
       this.setSaving("saved");this.renderCanvas();
-      if(!allCanRead) ui.notifications.info(sharePortrait
-        ? "Портрет персонажа опубликован на доске. Его закрытый лист и ссылка на него остались недоступны игрокам."
+      if(!allCanRead) ui.notifications.info(shareImage
+        ? "Изображение опубликовано на доске. Закрытый лист источника и ссылка на него остались недоступны игрокам."
         : "У части игроков нет доступа к источнику. Создана публичная карточка без секретной ссылки и изображения.");
     }catch(error){this.setSaving("error");notifyError(error);}
   }
@@ -598,14 +597,14 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const result=await ask({window:{title:"Настройки доски"},content:`<div class="db-dialog">
       <label>Название<input name="title" value="${escapeHTML(board.name)}" maxlength="100"></label>
       <label>Оформление<select name="theme"><option value="classic" ${meta.theme!=="dark"?"selected":""}>Классическая доска</option><option value="dark" ${meta.theme==="dark"?"selected":""}>Тёмная доска</option></select></label>
-      ${game.user.isGM?'<label class="db-restore-portraits"><input type="checkbox" name="restorePortraits"> Восстановить портреты старых карточек NPC по точному совпадению имени</label><p class="db-portrait-warning">Портреты станут видны всем участникам доски. Секретные листы NPC останутся закрытыми.</p>':""}
+      ${game.user.isGM?'<label class="db-restore-portraits"><input type="checkbox" name="restorePortraits"> Восстановить изображения старых карточек NPC и предметов по имени</label><p class="db-portrait-warning">Изображения станут видны всем участникам доски. Исходные листы останутся закрытыми.</p>':""}
       </div>`,ok:{label:"Сохранить",callback:(_e,b)=>({title:b.form.elements.title.value,theme:b.form.elements.theme.value,
         restorePortraits:!!b.form.elements.restorePortraits?.checked})}});
     if(!result)return;
     await board.update({name:result.title,[`flags.${MOD}.board`]:{...meta,theme:result.theme}});
     if(result.restorePortraits) {
-      const counts=await DBStore.restoreActorPortraits(board);
-      ui.notifications.info(`Восстановлено портретов: ${counts.restored}. Пропущено без точного совпадения: ${counts.skipped}.`);
+      const counts=await DBStore.restoreSourceImages(board);
+      ui.notifications.info(`Восстановлено изображений: ${counts.restored}. Пропущено без однозначного совпадения: ${counts.skipped}.`);
     }
     await this.render({force:true});
   }

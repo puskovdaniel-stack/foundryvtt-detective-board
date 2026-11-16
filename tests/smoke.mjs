@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {escapeHTML, safeImage, cardPosition, boardDialogPosition, boardWindowPosition, draggedDocumentUUID, ask, confirm, showWindowCloseX, cardResizeDimensions, cardPinPosition} from '../src/utils.js';
+import {escapeHTML, safeImage, documentImagePath, cardPosition, boardDialogPosition, boardWindowPosition, draggedDocumentUUID, ask, confirm, showWindowCloseX, cardResizeDimensions, cardPinPosition} from '../src/utils.js';
 let next=0;
 const clone = x=>structuredClone(x);
 function mergeDotted(target, patch) {
@@ -43,6 +43,15 @@ globalThis.foundry={documents:{JournalEntry:Journal,Folder}};
 globalThis.game={user:{id:'u1',name:'Player',isGM:false},journal:{contents:[],get(id){return this.contents.find(x=>x.id===id);}},folders:{contents:[]},users:{contents:[{id:'u1',name:'Player',isGM:false},{id:'u2',name:'Second',isGM:false} ],get(id){return this.contents.find(x=>x.id===id);}}};
 assert.equal(escapeHTML('<a "test">'), '&lt;a &quot;test&quot;&gt;');
 assert.equal(safeImage('javascript:alert(1)'), '');
+assert.equal(safeImage('data:image/png;base64,AAA'), '');
+assert.equal(safeImage('file:///C:/secret.png'), '');
+assert.equal(safeImage('vbscript:MsgBox(1)'), '');
+assert.equal(safeImage('Детективное агенство Взгляд извне/Дело1/01_Портреты_NPC/Браун.webp'),
+  'Детективное агенство Взгляд извне/Дело1/01_Портреты_NPC/Браун.webp');
+assert.equal(safeImage('worlds/Case One/John\'s portrait.png'), 'worlds/Case One/John&#39;s portrait.png');
+assert.equal(safeImage('portrait.png'), 'portrait.png');
+assert.equal(documentImagePath({img:'icons/svg/mystery-man.svg',prototypeToken:{texture:{src:'assets/Город/NPC.webp'}}},'Actor'), 'assets/Город/NPC.webp');
+assert.equal(documentImagePath({thumb:'data:image/png;base64,ABC',img:'images/Предмет.webp'},'Item'),'images/Предмет.webp');
 assert.deepEqual(cardPosition(4), {x:170,y:390});
 assert.equal(draggedDocumentUUID({type:"Scene",id:"abc"}),"Scene.abc");
 assert.equal(draggedDocumentUUID({type:"Scene",uuid:"Scene.xy"}),"Scene.xy");
@@ -124,7 +133,7 @@ await DBStore.ensureStorageFolder({migrate:true});
 assert.equal(legacy.folder,board.folder);
 assert.ok(DBStore.cards(imported).every(p=>!DBStore.entry(p).sourceUuid));
 // Restricted NPC Actor sheets stay private while their portraits are published as snapshots.
-const npc={name:'Inspector Brown',img:'icons/npc/inspector-brown.webp',uuid:'Actor.inspector',
+const npc={name:'Inspector Brown',img:'Детективное агенство Взгляд извне/Дело1/01_Портреты_NPC/inspector-brown.webp',uuid:'Actor.inspector',
   testUserPermission:user=>user.id==='u1'};
 game.actors={contents:[npc]};
 globalThis.TextEditor={getDragEventData:()=>({type:'Actor',uuid:npc.uuid})};
@@ -138,13 +147,25 @@ await BoardEditor.prototype.onDrop.call(editorStub,{preventDefault(){}});
 const inspector=DBStore.cards(board).find(p=>p.name==='Inspector Brown');
 assert.equal(DBStore.entry(inspector).image,npc.img);
 assert.equal(DBStore.entry(inspector).sourceUuid,null);
-assert.ok(statusMessage.includes('Портрет'));
-// Old blank NPC cards can be repaired explicitly by a GM without exposing source UUIDs.
+assert.ok(statusMessage.includes('Изображение'));
+const item={name:'Evidence Letter',img:'Детективное агенство Взгляд извне/Дело1/Предметы/letter.png',uuid:'Item.letter',
+  testUserPermission:user=>user.id==='u1'};
+game.items={contents:[item]};
+TextEditor.getDragEventData=()=>({type:'Item',uuid:item.uuid});
+globalThis.fromUuid=async()=>item;
+await BoardEditor.prototype.onDrop.call(editorStub,{preventDefault(){}});
+const evidence=DBStore.cards(board).find(p=>p.name==='Evidence Letter');
+assert.equal(DBStore.entry(evidence).image,item.img);
+assert.equal(DBStore.entry(evidence).sourceUuid,null);
+// Old blank NPC and item cards can be repaired explicitly by a GM.
 const oldNpc=await DBStore.createCard(board,{title:npc.name,type:'actor'});
-const repaired=await DBStore.restoreActorPortraits(board);
-assert.equal(repaired.restored,1);
+const oldItem=await DBStore.createCard(board,{title:item.name,type:'item'});
+const repaired=await DBStore.restoreSourceImages(board);
+assert.equal(repaired.restored,2);
 assert.equal(DBStore.entry(oldNpc).image,npc.img);
 assert.equal(DBStore.entry(oldNpc).sourceUuid,null);
+assert.equal(DBStore.entry(oldItem).image,item.img);
+assert.equal(DBStore.entry(oldItem).sourceUuid,null);
 // Pin-to-pin gesture starts a link, and only a distinct destination pin completes it.
 const pin={};
 const fromCard={dataset:{card:alice.id},classList:{add(){}},setPointerCapture(){},hasPointerCapture(){return true;},releasePointerCapture(){}};
