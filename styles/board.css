@@ -1,5 +1,6 @@
 /* Detective Board 0.1.0 - scoped styles for Foundry VTT 13 */
 .db-app { --db-ink:#2b2017; --db-cream:#e5d2a8; --db-red:#b03a30; color:var(--db-ink); }
+.db-app {max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);}
 .db-app .window-content { padding:0 !important; overflow:hidden; background:#241e1a; }
 .db-app button { min-height:30px; border:1px solid #a39279; border-radius:7px; padding:5px 10px; font:inherit; color:#f1dfc7; background:#49392e; cursor:pointer; box-shadow:none; }
 .db-app button:hover:not(:disabled) { background:#6a4b36; border-color:#cf9c6f; }
@@ -60,7 +61,10 @@
 .db-card-head {display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 5px;border-bottom:1px solid #baab8c;cursor:move;}
 .db-card-head strong{font:700 15px Georgia,serif;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .db-card-head i {color:#6e5540;font-size:13px;}
-.db-pin {position:absolute;top:-8px;left:calc(50% - 7px);width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#faac9a,#ba3e36 60%,#7e251e);border:1px solid #8e2924;box-shadow:2px 3px 2px #311a1a99;z-index:2;}
+.db-pin {position:absolute;top:-8px;left:calc(50% - 7px);width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#faac9a,#ba3e36 60%,#7e251e);border:1px solid #8e2924;box-shadow:2px 3px 2px #311a1a99;z-index:7;cursor:crosshair;touch-action:none;}
+.db-pin:hover,.db-pin.db-pin-target {outline:5px solid #ffce7180;outline-offset:3px;box-shadow:0 0 14px #ffd167;}
+.db-card.db-link-origin .db-pin {box-shadow:0 0 12px #fff3a2;}
+.db-link-preview {fill:none;stroke:#f2d27c;stroke-width:4;stroke-dasharray:10 6;pointer-events:none;filter:drop-shadow(0 0 3px #41210a);}
 .db-card-image {min-height:55px;flex:1;max-height:50%;margin-top:8px;background:#c8b99c;border:4px solid #efe4d0;box-shadow:0 2px 4px #48321c66;overflow:hidden;}
 .db-card-image img{display:block;width:100%;height:100%;object-fit:cover;}
 .db-card-description {font:13px/1.45 Georgia,serif;white-space:pre-wrap;overflow:hidden;min-height:30px;padding:8px 4px;flex:1;overflow-wrap:anywhere;}
@@ -103,6 +107,7 @@
   max-width:calc(100vw - 24px);
   max-height:calc(100vh - 24px);
   max-height:calc(100dvh - 24px);
+  min-width:0;
 }
 .db-board-form-dialog .window-content {
   display:flex;
@@ -145,13 +150,15 @@
   flex:0 0 auto;
 }
 
-.db-app .window-header button.db-close-x {
+.db-app .window-header button.db-close-x,
+.db-board-form-dialog .window-header button.db-close-x {
   display:inline-flex;align-items:center;justify-content:center;
   min-width:28px;width:28px;height:28px;padding:0;
   border:0;background:transparent;color:#efdabc;
   font:24px/1 Arial,sans-serif;
 }
-.db-app .window-header button.db-close-x:hover {background:#71472f;color:white;}
+.db-app .window-header button.db-close-x:hover,
+.db-board-form-dialog .window-header button.db-close-x:hover {background:#71472f;color:white;}
 .db-card.db-selected {outline:3px solid #f9d478;outline-offset:3px;}
 
 /* Long card/dialog forms: scroll only the content, never clip the submit button. */
@@ -185,15 +192,22 @@
   z-index:1;
   flex-shrink:0;
 }
+.db-board-form-dialog .dialog-buttons button,
+.db-board-form-dialog form > footer button {white-space:normal;min-height:32px;}
 /* Remove the default/missing glyph and redundant header controls. */
 .db-app .window-header button.db-close-x::before,
-.db-app .window-header button.db-close-x::after {
+.db-app .window-header button.db-close-x::after,
+.db-board-form-dialog .window-header button.db-close-x::before,
+.db-board-form-dialog .window-header button.db-close-x::after {
   content:none !important;
   display:none !important;
 }
 .db-app .window-header button.db-close-x > i,
-.db-app .window-header button.db-close-x > svg {display:none !important;}
+.db-app .window-header button.db-close-x > svg,
+.db-board-form-dialog .window-header button.db-close-x > i,
+.db-board-form-dialog .window-header button.db-close-x > svg {display:none !important;}
 .db-app .window-header button:not(.db-close-x) {display:none !important;}
+.db-board-form-dialog .window-header button:not(.db-close-x) {display:none !important;}
 
 /* Drag the bottom-right corner of any editable evidence card to resize. */
 .db-resize-handle {
@@ -215,3 +229,6 @@
 .db-image-preview[hidden] {display:none!important;}
 .db-dialog .db-link-remove {flex-direction:row;align-items:center;color:#b76b59;}
 .db-dialog .db-link-remove input {width:auto;}
+.db-dialog .db-restore-portraits {flex-direction:row;align-items:flex-start;gap:9px;}
+.db-dialog .db-restore-portraits input {width:auto;flex:none;margin-top:3px;}
+.db-dialog .db-portrait-warning {font-size:12px;color:#c6ae88;margin:0;}

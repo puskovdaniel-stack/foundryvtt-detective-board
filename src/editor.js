@@ -1,4 +1,4 @@
-import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX, cardResizeDimensions} from "./utils.js";
+import {escapeHTML, safeImage, clamp, ask, confirm, notifyError, downloadText, MOD, draggedDocumentUUID, showWindowCloseX, cardResizeDimensions, cardPinPosition, boardWindowPosition} from "./utils.js";
 import {DBStore} from "./store.js";
 
 export const activeEditors = new Set();
@@ -47,7 +47,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
     classes:["db-app","db-editor-app"],
     window:{title:"Detective Board",icon:"fa-solid fa-thumbtack",resizable:true},
-    position:{width:1130,height:770}
+    position:boardWindowPosition(1130,770,window.innerWidth,window.innerHeight)
   };
   constructor(boardId) {
     super({id:`db-editor-${boardId}`});
@@ -86,7 +86,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       </nav>
       <div class="db-viewport ${theme==="dark"?"db-cork-dark":"db-cork-classic"}" tabindex="0" aria-label="Полотно детективной доски">
         <div class="db-world"><svg class="db-link-layer" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10000 10000" preserveAspectRatio="xMinYMin meet"></svg><div class="db-card-layer"></div></div>
-        <div class="db-canvas-tip">${this.writable?"Перетащите Actor, Item, Journal или Scene сюда · Нажмите «нить» для соединения карточек":"Только просмотр · Масштабирование колесом мыши"}</div>
+        <div class="db-canvas-tip">${this.writable?"Перетащите Actor, Item, Journal или Scene сюда · Протяните нить от одного красного пина к другому":"Только просмотр · Масштабирование колесом мыши"}</div>
       </div>
       <aside class="db-inspector"><div class="db-inspector-title"><i class="fa-solid fa-magnifying-glass"></i> Поиск улик</div>
       <input type="search" data-role="card-search" placeholder="Название или тег" value="${escapeHTML(this.search)}" />
@@ -96,6 +96,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       <p class="db-tip">Выберите карточку и нажмите Delete, чтобы отправить её в корзину.</p>
       <p class="db-tip">Колесо мыши - масштаб. Средняя кнопка - перемещение доски.</p>
       <p class="db-tip">Связи подписываются. Нажмите на подпись, чтобы изменить или удалить нить.</p>
+      <p class="db-tip">Протяните красный пин одной карточки к пину другой, чтобы создать связь.</p>
       </div></aside></div>
       <div class="db-editor-footer"><div class="db-save-state" data-role="save"><i class="fa-solid fa-circle-check"></i> Сохранено</div>
       <span data-role="link-status"></span><span class="db-zoom-value" data-role="zoom">85%</span></div>`;
@@ -155,8 +156,8 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const from=board.pages.get(d.from),to=board.pages.get(d.to);
     if(!from||!to) return "";
     const a=DBStore.entry(from),b=DBStore.entry(to);
-    const ax=numberAttr(a.x)+clamp(a.width,160,620)/2, ay=numberAttr(a.y)+clamp(a.height,130,740)/2;
-    const bx=numberAttr(b.x)+clamp(b.width,160,620)/2, by=numberAttr(b.y)+clamp(b.height,130,740)/2;
+    const {x:ax,y:ay}=cardPinPosition(a);
+    const {x:bx,y:by}=cardPinPosition(b);
     const dx=bx-ax,dy=by-ay;
     const sag=Math.min(28,Math.hypot(dx,dy)*.08);
     const cx=(ax+bx)/2,cy=(ay+by)/2+sag;
@@ -184,6 +185,8 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   }
   async onClick(event) {
     const root=this.element;
+    // A pin belongs to the drag-to-connect interaction, not card selection.
+    if(event.target.closest(".db-pin"))return;
     const tool=event.target.closest("[data-tool]");
     if(tool) {
       if(tool.disabled) return;
@@ -269,6 +272,16 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const viewport=event.target.closest(".db-viewport");if(!viewport) return;
     const card=event.target.closest(".db-card");
     const isPan=event.button===1||this.tool==="pan";
+    if(card && event.button===0 && !isPan && this.writable && event.target.closest(".db-pin")) {
+      event.preventDefault();event.stopPropagation();
+      this.linkStart=null;this.linkStatus();
+      this.drag={type:"link",id:card.dataset.card,pointerId:event.pointerId,
+        clientX:event.clientX,clientY:event.clientY,target:card};
+      card.setPointerCapture(event.pointerId);
+      card.classList.add("db-link-origin");
+      this.drawPinPreview(event);
+      return;
+    }
     if(card && event.button===0 && this.tool==="select" && this.writable && event.target.closest(".db-resize-handle")) {
       const page=this.board?.pages.get(card.dataset.card),d=DBStore.entry(page);
       if(!page||!d)return;
@@ -302,6 +315,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
   }
   onPointerMove(event) {
     if(!this.drag||event.pointerId!==this.drag.pointerId)return;
+    if(this.drag.type==="link") {this.drawPinPreview(event);return;}
     if(this.drag.type==="pan") {
       this.offset.x=this.drag.origin.x+event.clientX-this.drag.clientX;
       this.offset.y=this.drag.origin.y+event.clientY-this.drag.clientY;
@@ -338,7 +352,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     for(const page of links) {
       const d=DBStore.entry(page),a=map.get(d.from),b=map.get(d.to);
       if(!a||!b)continue;
-      const ax=a.x+a.width/2,ay=a.y+a.height/2,bx=b.x+b.width/2,by=b.y+b.height/2;
+      const {x:ax,y:ay}=cardPinPosition(a),{x:bx,y:by}=cardPinPosition(b);
       const cx=(ax+bx)/2,cy=(ay+by)/2+Math.min(28,Math.hypot(bx-ax,by-ay)*.08);
       const line=root.querySelector(`.db-wire[data-link="${page.id}"]`);
       line?.querySelectorAll("path").forEach(path=>path.setAttribute("d",`M ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}`));
@@ -347,12 +361,51 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       if(circles?.length===2) {circles[0].setAttribute("cx",ax);circles[0].setAttribute("cy",ay);circles[1].setAttribute("cx",bx);circles[1].setAttribute("cy",by);}
     }
   }
+  pinAt(clientX,clientY,excludeId=null) {
+    let nearest=null,distance=Infinity;
+    for(const pin of this.element?.querySelectorAll(".db-card .db-pin")||[]) {
+      const card=pin.closest(".db-card");
+      if(!card||card.dataset.card===excludeId)continue;
+      const rect=pin.getBoundingClientRect();
+      const centerX=rect.left+rect.width/2,centerY=rect.top+rect.height/2;
+      const d=Math.hypot(clientX-centerX,clientY-centerY);
+      if(d<=Math.max(13,rect.width/2+8) && d<distance) {nearest=pin;distance=d;}
+    }
+    return nearest;
+  }
+  drawPinPreview(event) {
+    const drag=this.drag;if(drag?.type!=="link")return;
+    const root=this.element,svg=root?.querySelector(".db-link-layer");if(!svg)return;
+    const origin=drag.target.querySelector(".db-pin")?.getBoundingClientRect();if(!origin)return;
+    const a=this.getCoords({clientX:origin.left+origin.width/2,clientY:origin.top+origin.height/2});
+    const target=this.pinAt(event.clientX,event.clientY,drag.id);
+    root.querySelectorAll(".db-pin-target").forEach(pin=>pin.classList.remove("db-pin-target"));
+    target?.classList.add("db-pin-target");
+    const end=target?.getBoundingClientRect();
+    const b=end?this.getCoords({clientX:end.left+end.width/2,clientY:end.top+end.height/2}):this.getCoords(event);
+    const cx=(a.x+b.x)/2,cy=(a.y+b.y)/2+Math.min(28,Math.hypot(b.x-a.x,b.y-a.y)*.08);
+    let path=svg.querySelector(".db-link-preview");
+    if(!path){path=document.createElementNS("http://www.w3.org/2000/svg","path");path.classList.add("db-link-preview");svg.appendChild(path);}
+    path.setAttribute("d",`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`);
+  }
+  clearPinPreview() {
+    this.element?.querySelector(".db-link-preview")?.remove();
+    this.element?.querySelectorAll(".db-pin-target,.db-link-origin").forEach(el=>el.classList.remove("db-pin-target","db-link-origin"));
+  }
   async onPointerUp(event) {
     const drag=this.drag;if(!drag||event.pointerId!==drag.pointerId)return;
     this.drag=null;
     const viewport=this.element?.querySelector(".db-viewport");
     const captured=drag.target??viewport;
     if(captured?.hasPointerCapture(event.pointerId))captured.releasePointerCapture(event.pointerId);
+    if(drag.type==="link") {
+      const target=event.type==="pointercancel"?null:this.pinAt(event.clientX,event.clientY,drag.id);
+      const to=target?.closest(".db-card")?.dataset.card;
+      this.clearPinPreview();
+      try {if(to)await this.connect(drag.id,to);}catch(error){this.setSaving("error");notifyError(error);}
+      if(this.pendingUpdate){this.pendingUpdate=false;this.renderCanvas();}
+      return;
+    }
     if((drag.type==="card"||drag.type==="resize") && drag.changed && drag.last) {
       const page=this.board?.pages.get(drag.id);
       if(page) {
@@ -406,14 +459,20 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       // Do not expose a source UUID which some board viewers cannot read.
       const visibleUsers=game.users.contents.filter(u=>!u.isGM&&board.testUserPermission(u,"OBSERVER"));
       const allCanRead=visibleUsers.every(u=>doc.testUserPermission(u,"OBSERVER"));
-      const img=doc.thumb||doc.img||doc.background?.src||doc.src||"";
+      const img=data.type==="Actor"?(doc.img||doc.prototypeToken?.texture?.src||"")
+        :(doc.thumb||doc.img||doc.background?.src||doc.src||"");
+      // Dragging an NPC onto a shared board explicitly publishes its portrait,
+      // not its restricted Actor sheet or hidden UUID.
+      const sharePortrait=data.type==="Actor" && !!safeImage(img);
       const pos=this.getCoords(event);
       this.setSaving("saving");
       await DBStore.createCard(board,{title:doc.name,type:data.type.startsWith("Journal")?"journal":data.type.toLowerCase(),
-        image:allCanRead?img:"",sourceUuid:allCanRead?doc.uuid:null,
+        image:allCanRead||sharePortrait?img:"",sourceUuid:allCanRead?doc.uuid:null,
         description:allCanRead?"":"Публичное описание заполните вручную.",x:pos.x,y:pos.y});
       this.setSaving("saved");this.renderCanvas();
-      if(!allCanRead) ui.notifications.info("У части игроков нет доступа к источнику. Создана публичная карточка без секретной ссылки и изображения.");
+      if(!allCanRead) ui.notifications.info(sharePortrait
+        ? "Портрет персонажа опубликован на доске. Его закрытый лист и ссылка на него остались недоступны игрокам."
+        : "У части игроков нет доступа к источнику. Создана публичная карточка без секретной ссылки и изображения.");
     }catch(error){this.setSaving("error");notifyError(error);}
   }
   async addCard() {
@@ -490,6 +549,7 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
       </div>`,ok:{label:"Соединить",callback:(_e,b)=>({label:b.form.elements.label.value,color:b.form.elements.color.value})}});
     if(!result)return;
     this.setSaving("saving");await DBStore.createLink(this.board,from,to,result.label,result.color);
+    this.showLinks=true;this.element?.querySelector('[data-action="toggle-links"]')?.classList.add("active");
     this.setSaving("saved");this.renderCanvas();
   }
   async editLink(linkId) {
@@ -537,9 +597,16 @@ export class BoardEditor extends foundry.applications.api.ApplicationV2 {
     const board=this.board,meta=board.getFlag(MOD,"board");
     const result=await ask({window:{title:"Настройки доски"},content:`<div class="db-dialog">
       <label>Название<input name="title" value="${escapeHTML(board.name)}" maxlength="100"></label>
-      <label>Оформление<select name="theme"><option value="classic" ${meta.theme!=="dark"?"selected":""}>Классическая доска</option><option value="dark" ${meta.theme==="dark"?"selected":""}>Тёмная доска</option></select></label></div>`,ok:{label:"Сохранить",callback:(_e,b)=>({title:b.form.elements.title.value,theme:b.form.elements.theme.value})}});
+      <label>Оформление<select name="theme"><option value="classic" ${meta.theme!=="dark"?"selected":""}>Классическая доска</option><option value="dark" ${meta.theme==="dark"?"selected":""}>Тёмная доска</option></select></label>
+      ${game.user.isGM?'<label class="db-restore-portraits"><input type="checkbox" name="restorePortraits"> Восстановить портреты старых карточек NPC по точному совпадению имени</label><p class="db-portrait-warning">Портреты станут видны всем участникам доски. Секретные листы NPC останутся закрытыми.</p>':""}
+      </div>`,ok:{label:"Сохранить",callback:(_e,b)=>({title:b.form.elements.title.value,theme:b.form.elements.theme.value,
+        restorePortraits:!!b.form.elements.restorePortraits?.checked})}});
     if(!result)return;
     await board.update({name:result.title,[`flags.${MOD}.board`]:{...meta,theme:result.theme}});
+    if(result.restorePortraits) {
+      const counts=await DBStore.restoreActorPortraits(board);
+      ui.notifications.info(`Восстановлено портретов: ${counts.restored}. Пропущено без точного совпадения: ${counts.skipped}.`);
+    }
     await this.render({force:true});
   }
   async _preClose(options) {

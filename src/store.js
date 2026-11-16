@@ -1,4 +1,4 @@
-import {MOD, VERSION, OWNER, OBSERVER, pageData, cardPosition, clamp} from "./utils.js";
+import {MOD, VERSION, OWNER, OBSERVER, pageData, cardPosition, clamp, safeImage} from "./utils.js";
 
 const latestActivity = new Map();
 const MAX_HISTORY = 100;
@@ -102,6 +102,26 @@ export const DBStore = {
     const entry = {...old, ...fields, revision: (old.revision || 0) + 1, updatedAt: Date.now()};
     await page.update({ ...(title !== undefined ? {name: String(title).slice(0,100)} : {}), [`flags.${MOD}.entry`]: entry });
     return page;
+  },
+  async restoreActorPortraits(board) {
+    if(!game.user.isGM || !this.canEdit(board)) throw new Error("Восстановить портреты NPC может только GM.");
+    const actorsByName=new Map();
+    for(const actor of game.actors?.contents||[]) {
+      if(!safeImage(actor.img))continue;
+      const matches=actorsByName.get(actor.name)||[];
+      matches.push(actor);actorsByName.set(actor.name,matches);
+    }
+    let restored=0,skipped=0;
+    for(const page of this.cards(board)) {
+      const card=docFlag(page);
+      if(card.type!=="actor" || card.image || card.sourceUuid)continue;
+      const matches=actorsByName.get(page.name)||[];
+      if(matches.length!==1){skipped++;continue;}
+      await this.updateCard(page,{image:matches[0].img});
+      restored++;
+    }
+    if(restored)this.activity(board,"restore-portraits",`${restored} NPC portraits`);
+    return {restored,skipped};
   },
   async createLink(board, from, to, label = "Связано", color = "#ad392f") {
     if (!this.canEdit(board)) throw new Error("Нет прав на редактирование.");

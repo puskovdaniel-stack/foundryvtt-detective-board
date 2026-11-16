@@ -29,6 +29,13 @@ export function boardDialogPosition(viewportWidth = 1024, viewportHeight = 768) 
   };
 }
 
+export function boardWindowPosition(width, height, viewportWidth = 1024, viewportHeight = 768) {
+  return {
+    width: Math.max(160, Math.min(width, Math.floor(viewportWidth) - 32)),
+    height: Math.max(160, Math.min(height, Math.floor(viewportHeight) - 64))
+  };
+}
+
 export function escapeHTML(value = "") {
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 }
@@ -46,6 +53,16 @@ export function cardResizeDimensions(width,height,deltaX,deltaY,rotation=0) {
     height:Math.round(clamp(Number(height)-(Number(deltaX)||0)*sin+(Number(deltaY)||0)*cos,130,740))
   };
 }
+// Positions of the real red pins, including rotated evidence cards.
+export function cardPinPosition(card) {
+  const width=clamp(card.width,160,620),height=clamp(card.height,130,740);
+  const angle=clamp(card.rotation||0,-30,30)*Math.PI/180;
+  const radius=height/2+1;
+  return {
+    x:(Number(card.x)||0)+width/2+radius*Math.sin(angle),
+    y:(Number(card.y)||0)+height/2-radius*Math.cos(angle)
+  };
+}
 export function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
 export function own(object, prop) { return Object.prototype.hasOwnProperty.call(object, prop); }
 export function notifyError(error) {
@@ -55,24 +72,30 @@ export function notifyError(error) {
 export function t(key) { return game.i18n.localize(`DB.${key}`); }
 export function ask(config) {
   const html = typeof config?.content === "string" ? config.content : "";
-  const isLongForm = html.includes('class="db-dialog"')
-    && (html.includes("<textarea") || html.includes("db-permission-list")
-      || html.includes("db-other-note") || html.length > 700);
-  if (!isLongForm) {
-    return foundry.applications.api.DialogV2.prompt({rejectClose:false, ...config});
-  }
+  const isLongForm = html.includes("<textarea") || html.includes("db-permission-list")
+    || html.includes("db-other-note") || html.length > 700 || html.includes("db-history");
   const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;
+  const bounds=boardDialogPosition(viewportWidth,viewportHeight);
   return foundry.applications.api.DialogV2.prompt({
     ...config,
     rejectClose:false,
     classes:[...new Set(["db-board-form-dialog", ...(config.classes || [])])],
     window:{resizable:true, ...(config.window || {})},
-    position:{...boardDialogPosition(viewportWidth,viewportHeight), ...(config.position || {})}
+    position:{...bounds,height:isLongForm?bounds.height:Math.min(320,bounds.height),...(config.position || {})},
+    render:(event,dialog)=>{showWindowCloseX(dialog);config.render?.(event,dialog);}
   });
 }
 export function confirm(content, title = t("Confirm")) {
-  return foundry.applications.api.DialogV2.confirm({ window: { title }, content, rejectClose: false });
+  const viewportWidth=typeof window==="undefined"?1024:window.innerWidth;
+  const viewportHeight=typeof window==="undefined"?768:window.innerHeight;
+  const bounds=boardDialogPosition(viewportWidth,viewportHeight);
+  return foundry.applications.api.DialogV2.confirm({
+    classes:["db-board-form-dialog"],
+    window:{title,resizable:true},content,rejectClose:false,
+    position:{width:Math.min(480,bounds.width),height:Math.min(250,bounds.height)},
+    render:(_event,dialog)=>showWindowCloseX(dialog)
+  });
 }
 export function downloadText(filename, text, type = "application/json") {
   const blob = new Blob([text], {type});
